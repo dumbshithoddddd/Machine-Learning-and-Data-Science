@@ -35,11 +35,21 @@ local function getNumberAttr(player: Player, name: string, default: number): num
 	return default
 end
 
--- Weighted roll. Returns nil when no slot has positive weight.
-local function rollSlot(): number?
+-- True if paying this reward to this player would change something.
+local function rewardUseful(player: Player, reward: SpinConfig.Reward): boolean
+	if reward.Kind == "SpeedBonus" then
+		return getNumberAttr(player, "SpeedBonus", 0) < TreadmillConfig.MaxSpeedBonus
+	elseif reward.Kind == "Spins" then
+		return getNumberAttr(player, "Spins", 0) < SpinConfig.MaxSpins
+	end
+	return true
+end
+
+local function rollFiltered(player: Player, onlyUseful: boolean): number?
+	local slots = SpinConfig.Slots
 	local total = 0
-	for _, slot in ipairs(SpinConfig.Slots) do
-		if slot.Weight > 0 then
+	for _, slot in ipairs(slots) do
+		if slot.Weight > 0 and (not onlyUseful or rewardUseful(player, slot.Reward)) then
 			total += slot.Weight
 		end
 	end
@@ -49,8 +59,8 @@ local function rollSlot(): number?
 	local pick = math.random() * total
 	local acc = 0
 	local lastValid: number? = nil
-	for i, slot in ipairs(SpinConfig.Slots) do
-		if slot.Weight > 0 then
+	for i, slot in ipairs(slots) do
+		if slot.Weight > 0 and (not onlyUseful or rewardUseful(player, slot.Reward)) then
 			lastValid = i
 			acc += slot.Weight
 			if pick < acc then
@@ -59,6 +69,13 @@ local function rollSlot(): number?
 		end
 	end
 	return lastValid -- floating point edge
+end
+
+-- Weighted roll over slots that would still help this player (server-side
+-- state only). Falls back to the full table if every slot is capped out.
+-- Returns an index into SpinConfig.Slots, or nil when no slot has weight > 0.
+local function rollSlot(player: Player): number?
+	return rollFiltered(player, true) or rollFiltered(player, false)
 end
 
 -- Adds `amount` to a numeric attribute up to `cap`. Never lowers a value that
@@ -110,7 +127,7 @@ local function handleSpin(player: Player)
 		return
 	end
 
-	local slotIndex = rollSlot()
+	local slotIndex = rollSlot(player)
 	if slotIndex == nil then
 		fail(player, "Wheel unavailable")
 		return

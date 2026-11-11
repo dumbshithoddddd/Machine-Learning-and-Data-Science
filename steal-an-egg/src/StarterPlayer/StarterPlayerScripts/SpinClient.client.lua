@@ -118,6 +118,7 @@ closeButton.Font = Enum.Font.GothamBold
 closeButton.Parent = panel
 
 local spinning = false
+local clickToken = 0
 
 local function refreshInfo()
 	local spins = player:GetAttribute("Spins")
@@ -141,15 +142,20 @@ spinButton.Activated:Connect(function()
 	setSpinning(true) -- cosmetic; the server enforces the real lock
 	result.Text = ""
 	SpinRequest:FireServer()
+	clickToken += 1
+	local myToken = clickToken
 	-- The server may drop throttled rejections; unstick the button if nothing arrives.
 	task.delay(2, function()
-		if spinning and wheel:GetAttribute("Animating") ~= true then
+		if myToken == clickToken and spinning and wheel:GetAttribute("Animating") ~= true then
 			setSpinning(false)
 		end
 	end)
 end)
 
 SpinResponse.OnClientEvent:Connect(function(success: boolean, slotIndex: number?, message: string?)
+	if not success and wheel:GetAttribute("Animating") == true then
+		return -- stale/duplicate rejection while the wheel is animating
+	end
 	if not success or type(slotIndex) ~= "number" or slotIndex < 1 or slotIndex > slotCount then
 		result.Text = message or "Spin failed"
 		setSpinning(false)
