@@ -136,7 +136,7 @@ WalkSpeed = (SneakConfig.BaseWalkSpeed + SpeedBonus)
 | `SpinRequest` | C→S | none | SpinService |
 | `SpinResponse` | S→C | `success: boolean, slotIndex: number?, message: string?` | SpinService |
 | `SneakToggleRequest` | C→S | `wantSneak: boolean` | SneakService |
-| `NoiseEmitResponse` | S→C | `position: Vector3, loudness: number, source: string` | NoiseService |
+| `NoiseEmitResponse` | S→C | `position: Vector3, loudness: number, source: string, isOwn: boolean` (true only for the client whose character made the noise) | NoiseService |
 | `BossWakeResponse` | S→C (all clients) | `state: string, alertness: number` | BossWakeStateMachine |
 
 A group may add more remotes for its own client, following the naming rule.
