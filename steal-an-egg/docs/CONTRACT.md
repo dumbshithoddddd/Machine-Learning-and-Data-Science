@@ -140,6 +140,9 @@ WalkSpeed = (SneakConfig.BaseWalkSpeed + SpeedBonus)
 | `SneakToggleRequest` | C→S | `wantSneak: boolean` | SneakService |
 | `NoiseEmitResponse` | S→C | `position: Vector3, loudness: number, source: string, isOwn: boolean` (true only for the client whose character made the noise) | NoiseService |
 | `BossWakeResponse` | S→C (all clients) | `state: string, alertness: number` | BossWakeStateMachine |
+| `EggInventoryRequest` | C→S | none | EggHatchService |
+| `EggInventoryResponse` | S→C | `inventory: { [eggType]: number }` | EggHatchService |
+| `SpinOpenResponse` | S→C | none (open the wheel GUI) | SpinService |
 
 A group may add more remotes for its own client, following the naming rule.
 

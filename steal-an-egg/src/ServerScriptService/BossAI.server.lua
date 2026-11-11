@@ -6,6 +6,7 @@
 -- Mode is chosen by ServerBus "BossStateChanged". When a chase ends or the
 -- boss reaches the nest it increments counter attributes on the boss model
 -- (BossConfig.ChaseOverAttribute / ReturnDoneAttribute) for BossWakeStateMachine.
+-- Exactly one BossNPC model is supported (the first live tagged one is bound).
 -- Single fixed-rate loop (AITickRate), no per-frame work.
 -- Waypoint advance is polled (horizontal distance <= WaypointReachDistance) and
 -- MoveTo is re-issued every tick, so Humanoid's ~8 s MoveTo timeout never matters;
@@ -117,6 +118,9 @@ local function unbindBoss()
 	boss, humanoid, root = nil, nil, nil
 end
 
+local jumpedIndex = 0 -- waypoint index whose Jump was already issued
+local applyModeSpeed: () -> () -- defined below; bindBoss applies the current mode's speed
+
 local function bindBoss(model: Model): boolean
 	local hum = model:FindFirstChildOfClass("Humanoid")
 	local hrp = model:FindFirstChild("HumanoidRootPart")
@@ -136,12 +140,14 @@ local function bindBoss(model: Model): boolean
 			needRecompute = true
 		end
 	end)
+	applyModeSpeed()
 	return true
 end
 
 local function resetPath()
 	waypoints = {}
 	wpIndex = 1
+	jumpedIndex = 0
 	lastDest = nil
 	needRecompute = true
 	wpSince = os.clock()
@@ -150,6 +156,18 @@ end
 local function stopMoving()
 	if humanoid and root then
 		humanoid:MoveTo(root.Position)
+	end
+end
+
+function applyModeSpeed()
+	if humanoid then
+		if mode == "Chase" then
+			humanoid.WalkSpeed = BossConfig.ChaseSpeed
+		elseif mode == "Patrol" then
+			humanoid.WalkSpeed = BossConfig.PatrolSpeed
+		elseif mode == "Return" then
+			humanoid.WalkSpeed = BossConfig.ReturnSpeed
+		end
 	end
 end
 
@@ -166,15 +184,7 @@ local function setMode(newMode: string, newTarget: Player?)
 	elseif newMode == "Return" then
 		returnStart = os.clock()
 	end
-	if humanoid then
-		if newMode == "Chase" then
-			humanoid.WalkSpeed = BossConfig.ChaseSpeed
-		elseif newMode == "Patrol" then
-			humanoid.WalkSpeed = BossConfig.PatrolSpeed
-		elseif newMode == "Return" then
-			humanoid.WalkSpeed = BossConfig.ReturnSpeed
-		end
-	end
+	applyModeSpeed()
 end
 
 local function bump(attr: string)
@@ -207,6 +217,7 @@ local function compute(dest: Vector3): boolean
 	if ok and p.Status == Enum.PathStatus.Success then
 		waypoints = p:GetWaypoints()
 		wpIndex = #waypoints > 1 and 2 or 1
+		jumpedIndex = 0
 		wpSince = os.clock()
 		needRecompute = false
 		return true
@@ -234,8 +245,9 @@ local function stepPath(): boolean
 		needRecompute = true
 		wpSince = os.clock()
 	end
-	if wp.Action == Enum.PathWaypointAction.Jump then
-		-- Same as the reference NPCPathFollower: Jump waypoints trigger a jump state.
+	if wp.Action == Enum.PathWaypointAction.Jump and jumpedIndex ~= wpIndex then
+		-- Same as the reference NPCPathFollower: Jump waypoints trigger a jump state (once).
+		jumpedIndex = wpIndex
 		hum:ChangeState(Enum.HumanoidStateType.Jumping)
 	end
 	hum:MoveTo(wp.Position)
@@ -251,8 +263,12 @@ local function goTo(dest: Vector3)
 	local moved = lastDest == nil or (dest - lastDest).Magnitude > BossConfig.RecomputeMinTargetMove
 	local stale = needRecompute or #waypoints == 0 or moved
 	if stale and now - lastCompute >= BossConfig.PathRecomputeInterval then
+		local version = modeVersion
 		if not compute(dest) then
 			needRecompute = true
+		end
+		if version ~= modeVersion then
+			return -- mode changed while ComputeAsync yielded: no stale MoveTo
 		end
 	end
 	if #waypoints > 0 then
@@ -419,6 +435,16 @@ ServerBus.connect("BossStateChanged", function(state: any, newTarget: any)
 	applyBossState(state, t)
 end)
 
+-- Load-order race: BossWakeStateMachine may already have left Asleep before we
+-- connected. The target is unknown here; a Chase with no target ends at once
+-- and the wake SM's watchdog / counters take it from there.
+do
+	local current = workspace:GetAttribute("BossState")
+	if type(current) == "string" and current ~= "Asleep" then
+		applyBossState(current, nil)
+	end
+end
+
 Players.PlayerRemoving:Connect(function(player)
 	if target == player then
 		target = nil -- tickChase sees no valid target next tick and ends the chase
@@ -440,7 +466,8 @@ task.spawn(function()
 		if not boss then
 			local candidate = nil
 			for _, m in bossModels do
-				if m.Parent then
+				local mh = m:FindFirstChildOfClass("Humanoid")
+				if m.Parent and mh and mh.Health > 0 then -- never bind a dead boss
 					candidate = m
 					break
 				end

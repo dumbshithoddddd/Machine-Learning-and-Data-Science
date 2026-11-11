@@ -22,7 +22,9 @@ local alertness = 0
 -- NOTE: the chase target is fixed at the moment the boss wakes (Awake). There is
 -- no mid-chase retargeting to a noisier player; noise while Awake is ignored.
 local target: Player? = nil
+local stateSince = os.clock() -- when the current state was entered (watchdog)
 
+-- Exactly one BossNPC model is supported (the first tagged one); extras are ignored.
 -- Boss tracking (event driven, GetTagged read once).
 local bosses: { Model } = {}
 local warnedNoBoss = false
@@ -123,7 +125,6 @@ local lastBroadcastAlertness = -1
 local lastBroadcastTime = 0
 
 local function publishAlertness(force: boolean)
-	workspace:SetAttribute("BossAlertness", alertness)
 	local now = os.clock()
 	if
 		force
@@ -132,6 +133,7 @@ local function publishAlertness(force: boolean)
 			and now - lastBroadcastTime >= BossConfig.AlertnessBroadcastInterval
 		)
 	then
+		workspace:SetAttribute("BossAlertness", alertness) -- throttled with the broadcast
 		lastBroadcastAlertness = alertness
 		lastBroadcastTime = now
 		wakeRemote:FireAllClients(state, alertness)
@@ -144,6 +146,7 @@ local function setState(newState: string, newTarget: Player?)
 	end
 	state = newState
 	target = newTarget
+	stateSince = os.clock()
 	if newState == "Awake" then
 		alertness = 1
 	elseif newState == "Returning" then
@@ -200,11 +203,20 @@ local function evaluate()
 			end
 		end
 	end
+	local inState = os.clock() - stateSince
+	local margin = BossConfig.WatchdogMarginSeconds
 	if state == "Stirring" and alertness <= BossConfig.AsleepThreshold then
 		setState("Asleep", nil)
-	elseif state == "Awake" and chaseOverNew then
+	elseif
+		state == "Awake"
+		and (chaseOverNew or inState > BossConfig.MaxChaseSeconds + BossConfig.CatchPauseSeconds + margin)
+	then
+		-- watchdog: BossAI never reported the chase over (dead boss, missing script...)
 		setState("Returning", nil)
-	elseif state == "Returning" and returnDoneNew then
+	elseif
+		state == "Returning"
+		and (returnDoneNew or inState > BossConfig.ReturnTimeoutSeconds + margin)
+	then
 		alertness = 0
 		setState("Asleep", nil)
 	end
