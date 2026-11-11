@@ -125,14 +125,15 @@ hatchRequest.OnServerEvent:Connect(function(player: Player, eggType: unknown)
 
 	inv[eggType] -= 1 -- consume before anything else so a double fire cannot duplicate
 	local pet = roll(eggType, getLuck(player))
-	if not pet or not CurrencyService.AddCoins(player, math.floor(pet.CoinValue), "Hatch:" .. eggType) then
+	local coins = if pet then math.floor(pet.CoinValue) else 0
+	if not pet or not CurrencyService.AddCoins(player, coins, "Hatch:" .. eggType) then
 		inv[eggType] += 1 -- refund
 		hatchResponse:FireClient(player, false, eggType)
 		pushInventory(player)
 		return
 	end
 
-	hatchResponse:FireClient(player, true, eggType, pet.Name, pet.CoinValue)
+	hatchResponse:FireClient(player, true, eggType, pet.Name, coins)
 	pushInventory(player)
 end)
 

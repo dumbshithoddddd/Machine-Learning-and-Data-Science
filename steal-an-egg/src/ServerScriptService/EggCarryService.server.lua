@@ -29,26 +29,12 @@ local zones: { [BasePart]: boolean } = {}
 local carrying: { [Player]: Carry } = {}
 local lastSteal: { [Player]: number } = {}
 local charConns: { [Player]: { RBXScriptConnection } } = {}
+local diedConns: { [Player]: RBXScriptConnection } = {} -- one Died connection per player
 
--- Allocated once; filter list is refreshed only when characters change.
+-- Allocated once; the Include filter is set each tick to carriers' characters only.
 local overlapParams = OverlapParams.new()
 overlapParams.FilterType = Enum.RaycastFilterType.Include
 overlapParams.MaxParts = 200
-local characterSet: { [Model]: boolean } = {}
-local filterDirty = true
-
-local function markFilterDirty()
-	filterDirty = true
-end
-
-local function refreshFilter()
-	local list: { Instance } = {}
-	for character in characterSet do
-		table.insert(list, character)
-	end
-	overlapParams.FilterDescendantsInstances = list
-	filterDirty = false
-end
 
 local function pivotPosition(inst: Instance): Vector3?
 	if inst:IsA("Model") then
@@ -189,7 +175,6 @@ local function onSteal(nest: NestState, player: Player)
 	if now - (lastSteal[player] or -math.huge) < EggConfig.StealCooldown then
 		return
 	end
-	lastSteal[player] = now
 
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
@@ -210,6 +195,7 @@ local function onSteal(nest: NestState, player: Player)
 	if not clone then
 		return
 	end
+	lastSteal[player] = now
 	setNestVisible(nest, false)
 	nest.token += 1 -- cancel any pending respawn
 	carrying[player] = { eggType = nest.eggType, nest = nest, clone = clone }
@@ -270,6 +256,9 @@ local function unregisterNest(inst: Instance)
 	end
 	nests[inst] = nil
 	nest.token += 1
+	if inst.Parent then
+		setNestVisible(nest, true) -- untagged but still in the world: don't leave it hidden
+	end
 	nest.prompt:Destroy()
 	for player, carry in carrying do
 		if carry.nest == nest then
@@ -279,19 +268,15 @@ local function unregisterNest(inst: Instance)
 end
 
 local function trackCharacter(player: Player, character: Model)
-	characterSet[character] = true
-	markFilterDirty()
 	local humanoid = character:WaitForChild("Humanoid", 10)
-	if humanoid and humanoid:IsA("Humanoid") then
-		local conns = charConns[player]
-		if conns then
-			table.insert(
-				conns,
-				humanoid.Died:Connect(function()
-					dropEgg(player, "Died")
-				end)
-			)
+	if humanoid and humanoid:IsA("Humanoid") and player.Character == character and charConns[player] then
+		local old = diedConns[player]
+		if old then
+			old:Disconnect()
 		end
+		diedConns[player] = humanoid.Died:Connect(function()
+			dropEgg(player, "Died")
+		end)
 	end
 end
 
@@ -307,8 +292,11 @@ local function trackPlayer(player: Player)
 	table.insert(
 		conns,
 		player.CharacterRemoving:Connect(function(character)
-			characterSet[character] = nil
-			markFilterDirty()
+			local died = diedConns[player]
+			if died then
+				died:Disconnect()
+				diedConns[player] = nil
+			end
 			dropEgg(player, "Respawn")
 		end)
 	)
@@ -322,15 +310,25 @@ local function deliveryTick()
 	if next(carrying) == nil or next(zones) == nil then
 		return
 	end
-	if filterDirty then
-		refreshFilter()
+	local carrierChars: { [Model]: boolean } = {}
+	local list: { Instance } = {}
+	for player in carrying do
+		local character = player.Character
+		if character then
+			carrierChars[character] = true
+			table.insert(list, character)
+		end
 	end
+	if #list == 0 then
+		return
+	end
+	overlapParams.FilterDescendantsInstances = list
 	local found: { [Model]: boolean } = {}
 	for zone in zones do
 		if zone.Parent then
 			for _, part in workspace:GetPartsInPart(zone, overlapParams) do
 				local model = part:FindFirstAncestorOfClass("Model")
-				if model and characterSet[model] then
+				if model and carrierChars[model] then
 					found[model] = true
 				end
 			end
@@ -363,16 +361,17 @@ end
 Players.PlayerRemoving:Connect(function(player: Player)
 	dropEgg(player, "Left")
 	lastSteal[player] = nil
+	local died = diedConns[player]
+	if died then
+		died:Disconnect()
+		diedConns[player] = nil
+	end
 	local conns = charConns[player]
 	if conns then
 		for _, c in conns do
 			c:Disconnect()
 		end
 		charConns[player] = nil
-	end
-	if player.Character then
-		characterSet[player.Character] = nil
-		markFilterDirty()
 	end
 end)
 
