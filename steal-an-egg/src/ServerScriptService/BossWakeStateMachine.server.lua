@@ -51,7 +51,14 @@ local function getBoss(): Model?
 			table.remove(bosses, i)
 		end
 	end
-	return bosses[1]
+	-- A boss without a Humanoid, or with a dead one, counts as absent.
+	for _, m in bosses do
+		local hum = m:FindFirstChildOfClass("Humanoid")
+		if hum and hum.Health > 0 then
+			return m
+		end
+	end
+	return nil
 end
 
 local function getBossRoot(boss: Model?): BasePart?
@@ -162,6 +169,7 @@ end
 -- Counters written by BossAI; we only react to increases.
 local seenChaseOver = 0
 local seenReturnDone = 0
+local lastBoss: Model? = nil
 
 local function readCounter(boss: Model?, attr: string): number
 	if boss then
@@ -180,6 +188,14 @@ local function evaluate()
 			setState("Asleep", nil)
 		end
 		return
+	end
+
+	if boss ~= lastBoss then
+		-- New/respawned boss model: its counters restart, so resync instead of
+		-- waiting for the watchdog.
+		lastBoss = boss
+		seenChaseOver = readCounter(boss, BossConfig.ChaseOverAttribute)
+		seenReturnDone = readCounter(boss, BossConfig.ReturnDoneAttribute)
 	end
 
 	local chaseOver = readCounter(boss, BossConfig.ChaseOverAttribute)

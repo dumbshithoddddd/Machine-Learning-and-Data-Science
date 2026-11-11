@@ -328,8 +328,10 @@ local function tickChase(now: number)
 		return
 	end
 	if dist > BossConfig.LoseDistance then
-		lostTime += 1 / BossConfig.AITickRate
-		if lostTime >= BossConfig.LoseTimeSeconds then
+		if lostTime == 0 then
+			lostTime = now -- timestamp when the target first went out of range
+		end
+		if now - lostTime >= BossConfig.LoseTimeSeconds then
 			endChase()
 			return
 		end
@@ -465,17 +467,22 @@ task.spawn(function()
 		end
 		if not boss then
 			local candidate = nil
+			local sawDead = false
 			for _, m in bossModels do
 				local mh = m:FindFirstChildOfClass("Humanoid")
 				if m.Parent and mh and mh.Health > 0 then -- never bind a dead boss
 					candidate = m
 					break
+				elseif m.Parent then
+					sawDead = true
 				end
 			end
 			if candidate then
 				bindBoss(candidate)
+			elseif sawDead then
+				warnOnce("deadboss", "BossNPC is dead (or has no Humanoid); idling until a live one appears")
 			else
-				warnOnce("noboss", "no BossNPC model found; idling")
+				warnOnce("noboss", "no BossNPC model tagged; idling")
 			end
 		end
 

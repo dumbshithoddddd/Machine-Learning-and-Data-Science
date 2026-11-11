@@ -9,8 +9,10 @@ local BossConfig = {
 	AsleepThreshold = 0.12, -- Stirring -> Asleep at or below this (hysteresis)
 	-- Tuning arithmetic (gain = GainPerLoudnessStud * loudness, inside the audible radius):
 	--   sneaking, footstep loudness 8 at 4 steps/s: 0.004*8*4 = +0.128/s, minus 0.08 decay
-	--   = ~0.048/s net; right next to the nest that is ~6 s to Stirring (0.3) and ~20 s to
-	--   Awake (0.8) with no pause. Running, loudness 40 at 4 steps/s: +0.64/s => Awake in ~1.5 s.
+	--   = ~0.048/s net for an adjacent (within 8 studs) sneaker: ~6 s to Stirring (0.3) and
+	--   ~17 s to Awake (0.8) with no pause. Gain falls off linearly past the loudness radius
+	--   (out to 2.5x = 20 studs) and only beats decay inside ~12.5 studs.
+	--   Running, loudness 40 at 4 steps/s: +0.64/s - 0.08 = 0.56/s net => Awake in ~1.4 s.
 	--   Egg grab, loudness 45: one-off +0.18.
 	DecayPerSecond = 0.08, -- alertness lost per second (not while Awake)
 	ReturnAlertness = 0.2, -- alertness set when the chase ends (Returning)
