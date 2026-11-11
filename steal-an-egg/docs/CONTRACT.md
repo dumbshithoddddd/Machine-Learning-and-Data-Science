@@ -110,7 +110,7 @@ BossWakeStateMachine.
 
 ### WalkSpeed has exactly one owner: SneakService
 
-No other script sets `Humanoid.WalkSpeed`. SneakService recomputes on
+No other script sets a player character's `Humanoid.WalkSpeed` (BossAI sets the boss NPC's own speed). SneakService recomputes on
 attribute change:
 
 ```

@@ -7,11 +7,16 @@ local BossConfig = {
 	StirringThreshold = 0.3, -- Asleep -> Stirring at or above this
 	AwakeThreshold = 0.8, -- Stirring -> Awake at or above this
 	AsleepThreshold = 0.12, -- Stirring -> Asleep at or below this (hysteresis)
-	DecayPerSecond = 0.05, -- alertness lost per second (not while Awake)
+	-- Tuning arithmetic (gain = GainPerLoudnessStud * loudness, inside the audible radius):
+	--   sneaking, footstep loudness 8 at 4 steps/s: 0.004*8*4 = +0.128/s, minus 0.08 decay
+	--   = ~0.048/s net; right next to the nest that is ~6 s to Stirring (0.3) and ~20 s to
+	--   Awake (0.8) with no pause. Running, loudness 40 at 4 steps/s: +0.64/s => Awake in ~1.5 s.
+	--   Egg grab, loudness 45: one-off +0.18.
+	DecayPerSecond = 0.08, -- alertness lost per second (not while Awake)
 	ReturnAlertness = 0.2, -- alertness set when the chase ends (Returning)
 
 	-- Noise -> alertness. gain = GainPerLoudnessStud * loudness * falloff.
-	GainPerLoudnessStud = 0.01, -- loudness 20 studs fully audible => +0.2
+	GainPerLoudnessStud = 0.004, -- see tuning arithmetic above DecayPerSecond
 	-- falloff is 1 within `loudness` studs of the boss, fading linearly to 0 at
 	-- loudness * HearingMaxMultiplier; beyond that the noise is inaudible.
 	HearingMaxMultiplier = 2.5,
@@ -20,6 +25,9 @@ local BossConfig = {
 	StateTickRate = 5, -- wake loop Hz (must be <= 10)
 	AlertnessBroadcastInterval = 0.25, -- min seconds between BossWakeResponse updates
 	AlertnessBroadcastEpsilon = 0.01, -- min alertness change worth broadcasting
+
+	-- Wake SM watchdog: forces Returning / Asleep if BossAI never reports back.
+	WatchdogMarginSeconds = 5,
 
 	-- Group-private signalling BossAI -> BossWakeStateMachine (boss model attributes).
 	ChaseOverAttribute = "ChaseOverCount",
