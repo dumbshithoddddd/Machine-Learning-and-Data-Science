@@ -11,14 +11,13 @@ local Remotes = require(ReplicatedStorage:WaitForChild("Remotes"))
 local SneakConfig = require(ReplicatedStorage:WaitForChild("SneakConfig"))
 
 local player = Players.LocalPlayer
-local noiseRemote = Remotes.get("NoiseEmitResponse")
-local bossRemote = Remotes.get("BossWakeResponse")
+local RING_COLORS = SneakConfig.RingColors :: { [string]: Color3 }
 
 -- Boss state ------------------------------------------------------------------------
 
 local bossState = "Asleep"
 local alertness = 0
-local ringColor: Color3 = SneakConfig.RingColors.Asleep
+local ringColor: Color3 = RING_COLORS.Asleep
 
 local function setBoss(state: unknown, alert: unknown)
 	if typeof(state) == "string" then
@@ -36,7 +35,6 @@ end)
 workspace:GetAttributeChangedSignal("BossAlertness"):Connect(function()
 	setBoss(nil, workspace:GetAttribute("BossAlertness"))
 end)
-bossRemote.OnClientEvent:Connect(setBoss)
 
 -- HUD meter ---------------------------------------------------------------------------
 
@@ -126,16 +124,28 @@ local targetRadius = 0
 local holdUntil = 0
 local shownRadius = SneakConfig.RingMinRadius
 
-noiseRemote.OnClientEvent:Connect(function(_position: unknown, loudness: unknown, _source: unknown, isOwn: unknown)
-	if isOwn ~= true or typeof(loudness) ~= "number" then
-		return
-	end
-	local radius = math.min(loudness, SneakConfig.RingMaxRadius)
-	if radius >= targetRadius or os.clock() >= holdUntil then
-		targetRadius = radius
-		holdUntil = os.clock() + SneakConfig.RingHoldTime
-	end
+-- Remotes.get waits for the server to create each remote; do it off the main
+-- thread so the HUD and ring exist even if a server script is absent.
+task.spawn(function()
+	Remotes.get("BossWakeResponse").OnClientEvent:Connect(setBoss)
 end)
+task.spawn(function()
+	Remotes.get("NoiseEmitResponse").OnClientEvent:Connect(
+		function(_position: unknown, loudness: unknown, _source: unknown, isOwn: unknown)
+			if isOwn ~= true or typeof(loudness) ~= "number" then
+				return
+			end
+			local radius = math.min(loudness, SneakConfig.RingMaxRadius)
+			if radius >= targetRadius or os.clock() >= holdUntil then
+				targetRadius = radius
+				holdUntil = os.clock() + SneakConfig.RingHoldTime
+			end
+		end
+	)
+end)
+
+local shownState = "Asleep"
+local shownAlert = -1
 
 RunService.RenderStepped:Connect(function(dt: number)
 	local now = os.clock()
@@ -146,7 +156,7 @@ RunService.RenderStepped:Connect(function(dt: number)
 	local rate = if goal > shownRadius then SneakConfig.RingRiseRate else SneakConfig.RingFallRate
 	shownRadius += (goal - shownRadius) * (1 - math.exp(-rate * dt))
 
-	local color = SneakConfig.RingColors[bossState] or SneakConfig.RingColors.Asleep
+	local color = RING_COLORS[bossState] or RING_COLORS.Asleep
 	ringColor = ringColor:Lerp(color, math.min(1, dt * 8))
 
 	local root = rootPart
@@ -157,7 +167,13 @@ RunService.RenderStepped:Connect(function(dt: number)
 		ring.Color = ringColor
 	end
 
-	meterFill.Size = UDim2.fromScale(alertness, 1)
+	if alertness ~= shownAlert then
+		shownAlert = alertness
+		meterFill.Size = UDim2.fromScale(alertness, 1)
+	end
 	meterFill.BackgroundColor3 = ringColor
-	meterLabel.Text = bossState
+	if bossState ~= shownState then
+		shownState = bossState
+		meterLabel.Text = bossState
+	end
 end)

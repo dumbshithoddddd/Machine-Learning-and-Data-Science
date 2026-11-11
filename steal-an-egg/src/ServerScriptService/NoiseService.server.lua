@@ -64,8 +64,8 @@ local function emit(player: Player?, position: Vector3, loudness: number, source
 	if loudness <= 0 then
 		return
 	end
-	-- EggGrab is rare and server-originated: it never consumes or waits on the bucket.
-	if player and source ~= "EggGrab" and not takeToken(player) then
+	-- EggGrab (rare, server-originated) and Branch (once per arm) bypass the bucket.
+	if player and source ~= "EggGrab" and source ~= "Branch" and not takeToken(player) then
 		return
 	end
 	ServerBus.fire("NoiseEmitted", player, position, loudness, source)
@@ -123,6 +123,7 @@ local function onCharacterAdded(player: Player, character: Model)
 	end
 	chars[player] = { humanoid = humanoid, root = root }
 	contacts[player] = {}
+	local spawnedAt = os.clock()
 
 	local conns: { RBXScriptConnection } = {}
 	charConns[player] = conns
@@ -136,7 +137,13 @@ local function onCharacterAdded(player: Player, character: Model)
 			elseif new == Enum.HumanoidStateType.Landed then
 				local started = airStart[player]
 				airStart[player] = nil
-				if started and os.clock() - started >= SneakConfig.LandingMinAirTime and humanoid.Health > 0 then
+				local now = os.clock()
+				if
+					started
+					and now - started >= SneakConfig.LandingMinAirTime
+					and now - spawnedAt >= SneakConfig.LandingSpawnGrace
+					and humanoid.Health > 0
+				then
 					local loud = SneakConfig.LandingLoudness * noiseMultiplier(player) * carryMultiplier(player)
 					if player:GetAttribute("IsSneaking") == true then
 						loud *= SneakConfig.LandingSneakMultiplier
@@ -197,7 +204,6 @@ task.spawn(function()
 				humanoid.Health > 0
 				and not humanoid.Sit
 				and humanoid.FloorMaterial ~= Enum.Material.Air
-				and humanoid.MoveDirection.Magnitude >= SneakConfig.MinMoveDirection
 			then
 				local v = root.AssemblyLinearVelocity
 				local horizontal = math.sqrt(v.X * v.X + v.Z * v.Z)

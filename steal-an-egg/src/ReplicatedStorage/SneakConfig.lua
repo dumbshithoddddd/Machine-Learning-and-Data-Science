@@ -14,12 +14,12 @@ local SneakConfig = {
 	FootstepLoudnessSneak = 8,
 	CarryLoudnessMultiplier = 1.5, -- applied while CarryingEgg is set
 	MinMoveSpeed = 2, -- studs/s of horizontal velocity needed to count as moving
-	MinMoveDirection = 0.1, -- Humanoid.MoveDirection magnitude needed
 
 	-- Landing
 	LandingLoudness = 35,
 	LandingSneakMultiplier = 0.6,
 	LandingMinAirTime = 0.4, -- seconds in Freefall before a landing is audible
+	LandingSpawnGrace = 1.5, -- seconds after spawn during which landings are silent
 
 	-- Egg grab fallback if EggConfig has no GrabLoudness
 	EggGrabDefaultLoudness = 45,

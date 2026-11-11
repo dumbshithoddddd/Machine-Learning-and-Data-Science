@@ -10,22 +10,19 @@ local SneakConfig = require(ReplicatedStorage:WaitForChild("SneakConfig"))
 
 local toggleRemote = Remotes.get("SneakToggleRequest")
 
--- Required up front so WalkSpeed is never computed with a missing carry multiplier.
+-- Lazy, non-blocking lookup (sneak input must work even if EggConfig is missing).
+-- A background waiter (bottom of file) reapplies speeds once EggConfig appears.
 local eggConfigCache: any = nil
-do
-	local module = ReplicatedStorage:WaitForChild("EggConfig", 10)
-	if module and module:IsA("ModuleScript") then
-		local ok, result = pcall(require, module)
-		if ok then
-			eggConfigCache = result
-		else
-			warn("SneakService: EggConfig failed to load: " .. tostring(result))
-		end
-	else
-		warn("SneakService: EggConfig not found; carry speed multiplier ignored")
-	end
-end
 local function getEggConfig(): any
+	if eggConfigCache == nil then
+		local module = ReplicatedStorage:FindFirstChild("EggConfig")
+		if module and module:IsA("ModuleScript") then
+			local ok, result = pcall(require, module)
+			if ok then
+				eggConfigCache = result
+			end
+		end
+	end
 	return eggConfigCache
 end
 
@@ -129,3 +126,16 @@ Players.PlayerRemoving:Connect(cleanupPlayer)
 for _, player in Players:GetPlayers() do
 	setupPlayer(player)
 end
+
+task.spawn(function()
+	if getEggConfig() == nil then
+		ReplicatedStorage:WaitForChild("EggConfig", 10)
+		if getEggConfig() ~= nil then
+			for _, player in Players:GetPlayers() do
+				applySpeed(player)
+			end
+		else
+			warn("SneakService: EggConfig not available; carry speed multiplier ignored")
+		end
+	end
+end)
