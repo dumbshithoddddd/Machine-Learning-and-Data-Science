@@ -102,6 +102,7 @@ version.
 | `NoiseMultiplier` | number | 1 | ShopService | NoiseService |
 | `LuckMultiplier` | number | 1 | ShopService | EggHatchService |
 | `Spins` | number | 0 | SpinService (ShopService adds purchased spins) | SpinService, clients |
+| `NextFreeSpinAt` | number (os.time) | 0 | SpinService | clients |
 
 Treat a missing attribute as its default. Workspace attributes
 `BossState: string` and `BossAlertness: number` (0–1) are written only by
@@ -121,6 +122,7 @@ WalkSpeed = (SneakConfig.BaseWalkSpeed + SpeedBonus)
 ### Config fields other groups read
 
 - `EggConfig.Eggs[eggType] = { DisplayName: string, CarrySpeedMultiplier: number, GrabLoudness: number, Pets = { { Name: string, Weight: number, CoinValue: number }, ... } }`
+- `TreadmillConfig.MaxSpeedBonus: number` — the cap on the `SpeedBonus` attribute; every writer of `SpeedBonus` clamps to it and never lowers an existing value.
 - `SneakConfig.BaseWalkSpeed: number`, `SneakConfig.SneakSpeedMultiplier: number`
 - `ShopConfig.DevProducts[productId] = { Kind: "Spins", Amount: number }` —
   `MarketplaceService.ProcessReceipt` is set only by ShopService.

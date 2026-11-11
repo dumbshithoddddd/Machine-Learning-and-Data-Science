@@ -10,6 +10,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 
 local Remotes = require(ReplicatedStorage.Remotes)
 local SpinConfig = require(ReplicatedStorage.SpinConfig)
+local TreadmillConfig = require(ReplicatedStorage.TreadmillConfig)
 local CurrencyService = require(ServerScriptService.CurrencyService)
 
 local SpinRequest = Remotes.get("SpinRequest")
@@ -60,21 +61,35 @@ local function rollSlot(): number?
 	return lastValid -- floating point edge
 end
 
-local function grant(player: Player, reward: SpinConfig.Reward)
+-- Adds `amount` to a numeric attribute up to `cap`. Never lowers a value that
+-- is already at/above the cap. Returns the amount actually added.
+local function addCapped(player: Player, attr: string, amount: number, cap: number): number
+	local cur = getNumberAttr(player, attr, 0)
+	if cur >= cap then
+		return 0
+	end
+	local newVal = math.min(cur + amount, cap)
+	player:SetAttribute(attr, newVal)
+	return newVal - cur
+end
+
+-- Returns ok, label suffix. ok=false means nothing was paid (caller refunds).
+local function grant(player: Player, reward: SpinConfig.Reward): (boolean, string)
 	local amount = math.floor(reward.Amount)
 	if amount <= 0 then
-		return
+		return false, ""
 	end
 	if reward.Kind == "Coins" then
-		CurrencyService.AddCoins(player, amount, "Spin")
+		return CurrencyService.AddCoins(player, amount, "Spin") == true, ""
 	elseif reward.Kind == "SpeedBonus" then
-		player:SetAttribute("SpeedBonus", getNumberAttr(player, "SpeedBonus", 0) + amount)
+		local added = addCapped(player, "SpeedBonus", amount, TreadmillConfig.MaxSpeedBonus)
+		return true, if added <= 0 then " (already maxed)" else ""
 	elseif reward.Kind == "Spins" then
-		local newCount = math.min(getNumberAttr(player, "Spins", 0) + amount, SpinConfig.MaxSpins)
-		player:SetAttribute("Spins", newCount)
-	else
-		warn("[SpinService] unknown reward kind: " .. tostring(reward.Kind))
+		local added = addCapped(player, "Spins", amount, SpinConfig.MaxSpins)
+		return true, if added <= 0 then " (already maxed)" else ""
 	end
+	warn("[SpinService] unknown reward kind: " .. tostring(reward.Kind))
+	return false, ""
 end
 
 local function fail(player: Player, message: string)
@@ -104,6 +119,7 @@ local function handleSpin(player: Player)
 	-- Eligibility: free spin first, otherwise consume a held spin.
 	local wall = os.time()
 	local usedFree = false
+	local prevNextFree = getNumberAttr(player, NEXT_FREE_ATTR, 0)
 	if wall >= getNumberAttr(player, NEXT_FREE_ATTR, 0) then
 		usedFree = true
 	elseif getNumberAttr(player, "Spins", 0) < 1 then
@@ -120,8 +136,22 @@ local function handleSpin(player: Player)
 	end
 
 	local slot = SpinConfig.Slots[slotIndex]
-	grant(player, slot.Reward)
-	SpinResponse:FireClient(player, true, slotIndex, slot.Label)
+	local pcallOk, paid, suffix = pcall(grant, player, slot.Reward)
+	if not pcallOk or paid ~= true then
+		if not pcallOk then
+			warn("[SpinService] grant threw: " .. tostring(paid))
+		end
+		-- Refund the consumed spin and release the lock.
+		if usedFree then
+			player:SetAttribute(NEXT_FREE_ATTR, prevNextFree)
+		else
+			player:SetAttribute("Spins", getNumberAttr(player, "Spins", 0) + 1)
+		end
+		lockedUntil[player] = nil
+		SpinResponse:FireClient(player, false, nil, "Spin failed, not charged")
+		return
+	end
+	SpinResponse:FireClient(player, true, slotIndex, slot.Label .. (suffix :: string))
 end
 
 SpinRequest.OnServerEvent:Connect(function(player: Player, ...: any)
