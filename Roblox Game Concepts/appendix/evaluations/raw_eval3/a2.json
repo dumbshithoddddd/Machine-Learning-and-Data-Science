@@ -1,0 +1,37 @@
+{
+  "agent": 2,
+  "criterion": "mobile",
+  "scores": {
+    "R3-01": {
+      "score": 7,
+      "confidence": "medium",
+      "why": "Clearly built with touch in mind: no free aiming, world interactions are tap-on-highlight with large hit areas, the Parent's drive is a swipe-only lane dodger, gadgets sit on one radial, and PANIC raises the camera so tapping targets is easier. A 5-minute round fits mobile sessions. The weak points: one round switches between four control schemes (move+context button, swipe driving, elevated tap-to-hide, hunt). 'Tap again to cycle items in reach' is fiddly on a cluttered 6-inch screen, and world taps conflict with camera-drag gestures. Re-hiding behind the Parent's back means checking where the Parent is facing, which needs camera control that kids on phones handle poorly. A furnished house with smashable props, 25 evidence objects and 60 hiding spots is a real memory and draw-call risk on low-end Android.",
+      "fix": "Drop cycle-by-retap. Show a 2–3 item picker bubble above the nearest mess, and move the hide-spot arrows onto screen-edge buttons rather than world taps. Add an off-screen Parent direction indicator and a 'Parent can see you' eye icon so kids don't need camera control. Use streaming plus LOD for house props, and cap client debris per device tier. Keep every phase on the same two-button right-hand layout so learning carries over."
+    },
+    "R3-02": {
+      "score": 8,
+      "confidence": "medium",
+      "why": "The concept that most feels designed for touch rather than adapted to it. The whole input is finger-drawing 6 bold, forgiving runes. There is no thumbstick and no camera control, balcony moves are taps, and PC and console get the adapted schemes (mouse drag, radial). Sloppy traces cast weak or misfire comically, so the game is lenient about precision. Session length is fine at 6–8 minutes. Held back from 9 because: (1) on a 6-inch phone your hand covers the lane while you draw, under wave pressure; (2) server-side trace classification adds round-trip delay to every cast, and the 1-second fusion window is a tight timing demand between two players on mobile networks; (3) 'the screen is the drawing pad' clashes with tapping balconies and with Roblox's default jump/thumbstick touch areas unless those are disabled; (4) screen-filling fusions and client-rendered enemy waves can drop frames on low-end devices at the moments that matter most.",
+      "fix": "Classify runes on the client for instant feedback and let the server only validate. Widen the fusion window to about 1.5 s plus a ping allowance, or let the second caster 'join' a rune that is already in flight. Keep a fixed drawing zone (lower 60% of the screen) with the action framed above it so the hand doesn't cover it. Turn off the default touch controls and put balcony hops on small edge buttons. Set a particle budget per device tier for fusions."
+    },
+    "R3-03": {
+      "score": 6,
+      "confidence": "medium",
+      "why": "'Release the thumbstick = freeze' is a smart mobile mapping, and auto-snap posing, the 'LIGHT COMING' vignette, one Prank button and the Guard's soft-lock TAG show real mobile thinking. Ping-scaled grace protects mobile connections. But the Guard's core skill is spotting faint shimmer and small movements among ~30 slowly shifting NPC statues in a dark museum lit by a flashlight. That is the hardest possible readability task on a 6-inch screen in daylight or at low brightness, and a mouse or a large monitor gives a clear edge. Dynamic spotlight lighting plus 30+ animated R15 rigs is expensive on low-end phones, and turning shadows down removes the information the game depends on. Finding hidden pranks means exploring with the camera, which is weak on touch.",
+      "fix": "Make Guard detection less dependent on screen size: give clearer 'recently moved' tells (dust puff, creak icon with a direction), stronger shimmer on mobile, and a short slow-motion replay after a wrong tag. Use stylized bright moonlit rooms with a baked flashlight cone rather than real-time shadows. Lower NPC statue animation rates by distance. Add a prank compass or ping so statues don't need camera-heavy searching."
+    },
+    "R3-04": {
+      "score": 9,
+      "confidence": "medium",
+      "why": "Close to ideal for phones: no thumbstick, auto camera, one big HOLD button in the bottom-right corner that the game replaces rather than competes with, and one role button above it. It is playable one-thumbed on any device. Shared communication is huge on-screen LEFT/RIGHT/STOP arrows (works with chat gated), and the heading arrow plus the 'paddle now' ghost arrow make it readable at a glance. A kinematic server raft with interpolation is light on low-end hardware, and per-segment runs suit short sessions. Precision is about timing rather than aiming, which tolerates touch. Gaps: the Lookout's hazard strip, Bailer scooping into rivals and Bonker water balloons suggest aiming or tap-target tasks that aren't specified, and with 6 avatars on one raft you may not see which seat is yours on a small screen.",
+      "fix": "Keep every role on the same 2-button layout. Balloons and bails auto-target the nearest rival raft or hazard. Lookout pings are three large swipe directions, not small buttons. Show the hazard strip full width at the top of the screen. Highlight your own seat and paddle in your colour and show its input feedback beside the HOLD button. Test water shaders on a low-end tier."
+    },
+    "R3-05": {
+      "score": 7,
+      "confidence": "medium",
+      "why": "Thought through for mobile in several places: fixed elevated camera that fades walls, bold pulsing critter icons through smoke, generous hose magnetism, a coarse fire grid, and capped particles for a low-end tier. 5-minute runs fit sessions. But the controls are twin-stick: move on the left while dragging the hose on the right, and the right thumb also has to reach a RESCUE/USE button and the jump area, so the hose drag and the contextual button share a thumb. 'Critters wriggle free if you run' depends on how far the thumbstick is pushed, and touch is poor at walk/run analog control. That precision will feel unfair. Fire, smoke, water and 4 players' companions on screen together are the heaviest rendering load in this set, and a 2-floor house under a fixed camera has floor-occlusion readability problems.",
+      "fix": "Make the hose auto-aim and fire while held, with the drag only nudging direction, so one thumb covers both hose and USE. While carrying a critter, set an automatic careful-walk speed instead of punishing analog overshoot. Put the contextual button where it doesn't overlap the drag zone (upper right). Show one floor at a time with clear stair transitions. Cap companions shown in-run to your own, plus icons for others, on low-end devices."
+    }
+  },
+  "overall_notes": "Ranking on mobile fit: R3-04 > R3-02 > R3-01 = R3-05 > R3-03. R3-04 and R3-02 are built for touch first (no thumbstick, no camera control, input that is native to touch). R3-01 and R3-05 are mobile-aware but still carry PC-style control pressure (camera awareness, a twin-stick hose, mode switching). R3-03's input mapping is good, but its core Guard skill (spotting subtle movement in the dark) favours large screens and good GPUs. Every concept should be tested on a 2–3 GB Android at a 6-inch landscape size, with default touch controls disabled or repositioned where the design doesn't use them."
+}
